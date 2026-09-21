@@ -20,6 +20,14 @@ public class UserController
     @Autowired
     private UserService service;
 
+    @GetMapping("/")
+    public String home()
+    {
+        return "User Service is Running";
+    }
+    
+    
+    
     // CREATE
     @PostMapping("/add")
     public ResponseEntity<UserResponse> addUser(
@@ -40,7 +48,7 @@ public class UserController
 
     // READ ONE
     @GetMapping("/display/{id}")
-    public ResponseEntity<UserResponse> displayUser(
+    public ResponseEntity<UserResponse> getUserById(
             @PathVariable Long id)
     {
         return ResponseEntity.ok(

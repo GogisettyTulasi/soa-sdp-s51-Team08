@@ -25,7 +25,9 @@ public class UserServiceImpl implements UserService
         user.setName(request.getName());
         user.setEmail(request.getEmail());
         user.setPassword(request.getPassword());
-        user.setPhone(request.getPhone());
+        user.setContact(request.getContact());
+        user.setRole(request.getRole());
+
 
         User savedUser = repository.save(user);
 
@@ -64,7 +66,8 @@ public class UserServiceImpl implements UserService
         user.setName(request.getName());
         user.setEmail(request.getEmail());
         user.setPassword(request.getPassword());
-        user.setPhone(request.getPhone());
+        user.setContact(request.getContact());
+        user.setRole(request.getRole());
 
         User updatedUser = repository.save(user);
 
@@ -89,7 +92,8 @@ public class UserServiceImpl implements UserService
                 .userId(user.getUserId())
                 .name(user.getName())
                 .email(user.getEmail())
-                .phone(user.getPhone())
+                .contact(user.getContact())
+                .role(user.getRole())
                 .build();
     }
 }
