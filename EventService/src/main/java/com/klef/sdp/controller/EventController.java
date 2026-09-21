@@ -67,21 +67,32 @@ public class EventController {
     }
 
     @PutMapping("/update/{id}")
-    public ResponseEntity<EventResponse> updateEvent(
-            @PathVariable Long id,
-            @Valid @RequestBody EventRequest request) {
+    public ResponseEntity<EventResponse> updateEvent(@PathVariable Long id, @Valid @RequestBody EventRequest request) {
 
         return ResponseEntity.ok(
                 service.updateEvent(id, request));
     }
 
     @DeleteMapping("/delete/{id}")
-    public ResponseEntity<String> deleteEvent(
-            @PathVariable Long id) {
+    public ResponseEntity<String> deleteEvent(@PathVariable Long id) {
 
         service.deleteEvent(id);
 
         return ResponseEntity.ok(
                 "Event deleted successfully.");
+    }
+    
+    @PutMapping("/book/{id}/{seats}")
+    public ResponseEntity<EventResponse> bookSeats(@PathVariable Long id, @PathVariable int seats)
+    {
+        return ResponseEntity.ok(service.bookSeats(id, seats));
+    }
+    
+    @PutMapping("/release/{id}/{seats}")
+    public ResponseEntity<EventResponse> releaseSeats(
+            @PathVariable Long id,
+            @PathVariable int seats)
+    {
+        return ResponseEntity.ok(service.releaseSeats(id, seats));
     }
 }
