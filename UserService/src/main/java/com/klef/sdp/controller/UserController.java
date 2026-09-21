@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.*;
 
 import com.klef.sdp.dto.UserRequest;
 import com.klef.sdp.dto.UserResponse;
+import com.klef.sdp.dto.LoginRequest;
+import com.klef.sdp.dto.LoginResponse;
 import com.klef.sdp.service.UserService;
 
 import jakarta.validation.Valid;
@@ -25,9 +27,16 @@ public class UserController
     {
         return "User Service is Running";
     }
-    
-    
-    
+
+    // LOGIN
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(
+            @Valid @RequestBody LoginRequest request)
+    {
+        return ResponseEntity.ok(
+                service.login(request));
+    }
+
     // CREATE
     @PostMapping("/add")
     public ResponseEntity<UserResponse> addUser(
@@ -76,4 +85,3 @@ public class UserController
                 "User deleted successfully");
     }
 }
-
