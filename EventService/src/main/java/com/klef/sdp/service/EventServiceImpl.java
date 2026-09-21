@@ -13,14 +13,14 @@ import com.klef.sdp.exception.ResourceNotFoundException;
 import com.klef.sdp.repository.EventRepository;
 
 @Service
-public class EventServiceImpl implements EventService {
-
+public class EventServiceImpl implements EventService
+{
     @Autowired
     private EventRepository repository;
 
     @Override
-    public EventResponse saveEvent(EventRequest request) {
-
+    public EventResponse saveEvent(EventRequest request)
+    {
         Event event = new Event();
 
         event.setEventName(request.getEventName());
@@ -35,8 +35,8 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    public List<EventResponse> getAllEvents() {
-
+    public List<EventResponse> getAllEvents()
+    {
         return repository.findAll()
                 .stream()
                 .map(this::mapToResponse)
@@ -44,8 +44,8 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    public EventResponse getEventById(Long id) {
-
+    public EventResponse getEventById(Long id)
+    {
         Event event = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Event not found with id : " + id));
@@ -54,8 +54,8 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    public EventResponse updateEvent(Long id, EventRequest request) {
-
+    public EventResponse updateEvent(Long id, EventRequest request)
+    {
         Event event = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Event not found with id : " + id));
@@ -71,8 +71,8 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    public void deleteEvent(Long id) {
-
+    public void deleteEvent(Long id)
+    {
         Event event = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Event not found with id : " + id));
@@ -89,16 +89,18 @@ public class EventServiceImpl implements EventService {
 
         if (seats > event.getAvailableSeats())
         {
-            throw new IllegalArgumentException("Insufficient available seats");
+            throw new IllegalArgumentException(
+                    "Insufficient available seats");
         }
 
-        event.setAvailableSeats(event.getAvailableSeats() - seats);
+        event.setAvailableSeats(
+                event.getAvailableSeats() - seats);
 
         Event updatedEvent = repository.save(event);
 
         return mapToResponse(updatedEvent);
     }
-    
+
     @Override
     public EventResponse releaseSeats(Long id, int seats)
     {
@@ -106,15 +108,16 @@ public class EventServiceImpl implements EventService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Event not found with id : " + id));
 
-        event.setAvailableSeats(event.getAvailableSeats() + seats);
+        event.setAvailableSeats(
+                event.getAvailableSeats() + seats);
 
         Event updatedEvent = repository.save(event);
 
         return mapToResponse(updatedEvent);
     }
-    
-    private EventResponse mapToResponse(Event event) {
 
+    private EventResponse mapToResponse(Event event)
+    {
         return EventResponse.builder()
                 .eventId(event.getEventId())
                 .eventName(event.getEventName())
@@ -124,4 +127,6 @@ public class EventServiceImpl implements EventService {
                 .availableSeats(event.getAvailableSeats())
                 .build();
     }
+
+	
 }

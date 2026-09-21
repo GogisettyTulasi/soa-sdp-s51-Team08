@@ -38,7 +38,11 @@ public class EventController {
     @Value("${server.port}")
     private String port;
 
-   
+    @GetMapping("/instance")
+    public String instance() {
+    	return "Event Service instance during running on  port: " + port;
+    }
+
 
     @PostMapping("/add")
     public ResponseEntity<EventResponse> saveEvent(

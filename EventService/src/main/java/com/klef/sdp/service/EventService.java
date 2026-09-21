@@ -16,8 +16,8 @@ public interface EventService {
     EventResponse updateEvent(Long id, EventRequest request);
 
     void deleteEvent(Long id);
-    
+
     EventResponse bookSeats(Long id, int seats);
-    
+
     EventResponse releaseSeats(Long id, int seats);
 }

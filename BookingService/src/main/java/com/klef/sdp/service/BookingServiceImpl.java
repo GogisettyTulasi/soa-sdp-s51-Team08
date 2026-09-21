@@ -16,6 +16,8 @@ import com.klef.sdp.entity.Booking;
 import com.klef.sdp.exception.ResourceNotFoundException;
 import com.klef.sdp.repo.BookingRepository;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+
 @Service
 public class BookingServiceImpl implements BookingService
 {
@@ -25,35 +27,35 @@ public class BookingServiceImpl implements BookingService
     @Autowired
     private EventClient eventClient; 
 
-    @Override
-    public ResponseEntity<?> saveBooking(BookingRequest request)
-    {
-        EventResponse event = eventClient.getEventById(request.getEventId());
-
-        if (request.getSeatsBooked() > event.getAvailableSeats())
-        {
-            return ResponseEntity
-                    .status(HttpStatus.BAD_REQUEST)
-                    .body("Insufficient available seats");
-        }
-
-        eventClient.bookSeats(
-                request.getEventId(),
-                request.getSeatsBooked());
-
-        Booking booking = Booking.builder()
-                .userId(request.getUserId())
-                .eventId(request.getEventId())
-                .seatsBooked(request.getSeatsBooked())
-                .bookingStatus("CONFIRMED")
-                .build();
-
-        Booking savedBooking = repository.save(booking);
-
-        return new ResponseEntity<>(
-                mapToResponse(savedBooking),
-                HttpStatus.CREATED);
-    }
+//    @Override
+//    public ResponseEntity<?> saveBooking(BookingRequest request)
+//    {
+//        EventResponse event = eventClient.getEventById(request.getEventId());
+//
+//        if (request.getSeatsBooked() > event.getAvailableSeats())
+//        {
+//            return ResponseEntity
+//                    .status(HttpStatus.BAD_REQUEST)
+//                    .body("Insufficient available seats");
+//        }
+//
+//        eventClient.bookSeats(
+//                request.getEventId(),
+//                request.getSeatsBooked());
+//
+//        Booking booking = Booking.builder()
+//                .userId(request.getUserId())
+//                .eventId(request.getEventId())
+//                .seatsBooked(request.getSeatsBooked())
+//                .bookingStatus("CONFIRMED")
+//                .build();
+//
+//        Booking savedBooking = repository.save(booking);
+//
+//        return new ResponseEntity<>(
+//                mapToResponse(savedBooking),
+//                HttpStatus.CREATED);
+//    }
 
     @Override
     public List<BookingResponse> getAllBookings()
@@ -173,6 +175,54 @@ public class BookingServiceImpl implements BookingService
         }
 
         return ResponseEntity.ok(mapToResponse(booking));
+    }
+    
+    @Override
+    @CircuitBreaker(
+            name = "EventService",
+            fallbackMethod = "EventServiceFallback"
+    )
+    public ResponseEntity<?> saveBooking(BookingRequest request)
+    {
+        EventResponse event = eventClient.getEventById(request.getEventId());
+
+        if (request.getSeatsBooked() > event.getAvailableSeats())
+        {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body("Insufficient available seats");
+        }
+
+        eventClient.bookSeats(
+                request.getEventId(),
+                request.getSeatsBooked());
+
+        Booking booking = Booking.builder()
+                .userId(request.getUserId())
+                .eventId(request.getEventId())
+                .seatsBooked(request.getSeatsBooked())
+                .bookingStatus("CONFIRMED")
+                .build();
+
+        Booking savedBooking = repository.save(booking);
+
+        return new ResponseEntity<>(
+                mapToResponse(savedBooking),
+                HttpStatus.CREATED);
+    }
+
+    public ResponseEntity<?> EventServiceFallback(
+            BookingRequest request,
+            Throwable throwable)
+    {
+        System.out.println("--------------------------------");
+        System.out.println("Event Service is unavailable!");
+        System.out.println("Circuit Breaker Fallback executed.");
+        System.out.println("----------------------------------");
+
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body("Event Service is currently unavailable");
     }
 
     private BookingResponse mapToResponse(Booking booking)
