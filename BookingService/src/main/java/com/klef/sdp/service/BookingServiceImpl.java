@@ -8,8 +8,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+import com.klef.sdp.client.EventClient;
 import com.klef.sdp.dto.BookingRequest;
 import com.klef.sdp.dto.BookingResponse;
+import com.klef.sdp.dto.EventResponse;
 import com.klef.sdp.entity.Booking;
 import com.klef.sdp.exception.ResourceNotFoundException;
 import com.klef.sdp.repo.BookingRepository;
@@ -20,9 +22,25 @@ public class BookingServiceImpl implements BookingService
     @Autowired
     private BookingRepository repository;
 
+    @Autowired
+    private EventClient eventClient; 
+
     @Override
     public ResponseEntity<?> saveBooking(BookingRequest request)
     {
+        EventResponse event = eventClient.getEventById(request.getEventId());
+
+        if (request.getSeatsBooked() > event.getAvailableSeats())
+        {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body("Insufficient available seats");
+        }
+
+        eventClient.bookSeats(
+                request.getEventId(),
+                request.getSeatsBooked());
+
         Booking booking = Booking.builder()
                 .userId(request.getUserId())
                 .eventId(request.getEventId())
@@ -32,7 +50,9 @@ public class BookingServiceImpl implements BookingService
 
         Booking savedBooking = repository.save(booking);
 
-        return new ResponseEntity<>(mapToResponse(savedBooking), HttpStatus.CREATED);
+        return new ResponseEntity<>(
+                mapToResponse(savedBooking),
+                HttpStatus.CREATED);
     }
 
     @Override
@@ -60,6 +80,51 @@ public class BookingServiceImpl implements BookingService
         Booking booking = repository.findById(id)
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Booking not found with id : " + id));
+
+        if ("CONFIRMED".equals(booking.getBookingStatus()))
+        {
+            if (!booking.getEventId().equals(request.getEventId()))
+            {
+                eventClient.releaseSeats(
+                        booking.getEventId(),
+                        booking.getSeatsBooked());
+
+                EventResponse newEvent =
+                        eventClient.getEventById(request.getEventId());
+
+                if (request.getSeatsBooked() > newEvent.getAvailableSeats())
+                {
+                    eventClient.bookSeats(
+                            booking.getEventId(),
+                            booking.getSeatsBooked());
+
+                    throw new IllegalArgumentException(
+                            "Insufficient available seats");
+                }
+
+                eventClient.bookSeats(
+                        request.getEventId(),
+                        request.getSeatsBooked());
+            }
+            else
+            {
+                int difference =
+                        request.getSeatsBooked() - booking.getSeatsBooked();
+
+                if (difference > 0)
+                {
+                    eventClient.bookSeats(
+                            request.getEventId(),
+                            difference);
+                }
+                else if (difference < 0)
+                {
+                    eventClient.releaseSeats(
+                            request.getEventId(),
+                            -difference);
+                }
+            }
+        }
 
         booking.setUserId(request.getUserId());
         booking.setEventId(request.getEventId());
@@ -96,9 +161,16 @@ public class BookingServiceImpl implements BookingService
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Booking not found with id : " + id));
 
-        booking.setBookingStatus("CANCELLED");
+        if ("CONFIRMED".equals(booking.getBookingStatus()))
+        {
+            eventClient.releaseSeats(
+                    booking.getEventId(),
+                    booking.getSeatsBooked());
 
-        repository.save(booking);
+            booking.setBookingStatus("CANCELLED");
+
+            repository.save(booking);
+        }
 
         return ResponseEntity.ok(mapToResponse(booking));
     }

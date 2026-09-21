@@ -27,6 +27,7 @@ public class EventServiceImpl implements EventService {
         event.setLocation(request.getLocation());
         event.setEventDate(request.getEventDate());
         event.setTotalSeats(request.getTotalSeats());
+        event.setAvailableSeats(request.getTotalSeats());
 
         Event savedEvent = repository.save(event);
 
@@ -79,6 +80,39 @@ public class EventServiceImpl implements EventService {
         repository.delete(event);
     }
 
+    @Override
+    public EventResponse bookSeats(Long id, int seats)
+    {
+        Event event = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Event not found with id : " + id));
+
+        if (seats > event.getAvailableSeats())
+        {
+            throw new IllegalArgumentException("Insufficient available seats");
+        }
+
+        event.setAvailableSeats(event.getAvailableSeats() - seats);
+
+        Event updatedEvent = repository.save(event);
+
+        return mapToResponse(updatedEvent);
+    }
+    
+    @Override
+    public EventResponse releaseSeats(Long id, int seats)
+    {
+        Event event = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Event not found with id : " + id));
+
+        event.setAvailableSeats(event.getAvailableSeats() + seats);
+
+        Event updatedEvent = repository.save(event);
+
+        return mapToResponse(updatedEvent);
+    }
+    
     private EventResponse mapToResponse(Event event) {
 
         return EventResponse.builder()
@@ -87,6 +121,7 @@ public class EventServiceImpl implements EventService {
                 .location(event.getLocation())
                 .eventDate(event.getEventDate())
                 .totalSeats(event.getTotalSeats())
+                .availableSeats(event.getAvailableSeats())
                 .build();
     }
 }

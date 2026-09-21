@@ -18,6 +18,8 @@ public class Event {
     private LocalDate eventDate;
 
     private int totalSeats;
+    
+    private int availableSeats;
 
     public Event() {
     }
@@ -68,4 +70,13 @@ public class Event {
     public void setTotalSeats(int totalSeats) {
         this.totalSeats = totalSeats;
     }
+
+	public int getAvailableSeats() {
+		return availableSeats;
+	}
+
+	public void setAvailableSeats(int availableSeats) {
+		this.availableSeats = availableSeats;
+	}
+    
 }

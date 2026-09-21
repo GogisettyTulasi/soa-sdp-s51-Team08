@@ -14,4 +14,5 @@ public class EventResponse {
     private String location;
     private LocalDate eventDate;
     private int totalSeats;
+    private int availableSeats;
 }
