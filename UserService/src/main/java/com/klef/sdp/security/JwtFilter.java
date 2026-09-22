@@ -1,3 +1,4 @@
+
 package com.klef.sdp.security;
 
 import java.io.IOException;
@@ -18,8 +19,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 @Component
-public class JwtFilter extends OncePerRequestFilter
-{
+public class JwtFilter extends OncePerRequestFilter {
+
     @Autowired
     private JwtUtil jwtUtil;
 
@@ -31,27 +32,28 @@ public class JwtFilter extends OncePerRequestFilter
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain chain)
-            throws ServletException, IOException
-    {
+            throws ServletException, IOException {
+
         String path = request.getServletPath();
 
+        // Public APIs
         boolean isPublicEndpoint =
                 path.equals("/user/")
+                || path.equals("/user/test")
                 || path.equals("/user/login")
                 || path.equals("/user/add")
                 || path.startsWith("/swagger-ui")
                 || path.startsWith("/v3/api-docs");
 
-        if (isPublicEndpoint)
-        {
+        if (isPublicEndpoint) {
             chain.doFilter(request, response);
             return;
         }
 
+        // Get Authorization header
         String header = request.getHeader("Authorization");
 
-        if (header == null || !header.startsWith("Bearer "))
-        {
+        if (header == null || !header.startsWith("Bearer ")) {
             sendErrorResponse(
                     response,
                     401,
@@ -59,21 +61,25 @@ public class JwtFilter extends OncePerRequestFilter
             return;
         }
 
+        // Extract JWT
         String token = header.substring(7).trim();
 
-        try
-        {
+        try {
+            // Extract username/email from JWT
             String username = jwtUtil.extractUsername(token);
 
             if (SecurityContextHolder.getContext()
-                    .getAuthentication() == null)
-            {
+                    .getAuthentication() == null) {
+
+                // Load user from database
                 UserDetails userDetails =
                         service.loadUserByUsername(username);
 
+                // Validate token
                 if (userDetails != null &&
-                    jwtUtil.validateToken(token, userDetails))
-                {
+                    jwtUtil.validateToken(token, userDetails)) {
+
+                    // Create authentication with user's authorities
                     UsernamePasswordAuthenticationToken authToken =
                             new UsernamePasswordAuthenticationToken(
                                     userDetails,
@@ -84,11 +90,10 @@ public class JwtFilter extends OncePerRequestFilter
                             new WebAuthenticationDetailsSource()
                                     .buildDetails(request));
 
+                    // Store authentication
                     SecurityContextHolder.getContext()
                             .setAuthentication(authToken);
-                }
-                else
-                {
+                } else {
                     sendErrorResponse(
                             response,
                             401,
@@ -96,9 +101,8 @@ public class JwtFilter extends OncePerRequestFilter
                     return;
                 }
             }
-        }
-        catch (Exception e)
-        {
+
+        } catch (Exception e) {
             sendErrorResponse(
                     response,
                     401,
@@ -113,8 +117,8 @@ public class JwtFilter extends OncePerRequestFilter
             HttpServletResponse response,
             int status,
             String message)
-            throws IOException
-    {
+            throws IOException {
+
         response.setStatus(status);
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
