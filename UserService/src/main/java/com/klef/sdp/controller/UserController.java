@@ -1,6 +1,5 @@
 
 package com.klef.sdp.controller;
-
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,11 +15,15 @@ import com.klef.sdp.dto.LoginResponse;
 import com.klef.sdp.service.UserService;
 
 import jakarta.validation.Valid;
+import com.klef.sdp.client.EventClient;
+import com.klef.sdp.dto.EventResponse;
 
 @RestController
+
 @RequestMapping("/user")
 public class UserController {
-
+	@Autowired
+	private EventClient eventClient;
     @Autowired
     private UserService service;
 
@@ -99,4 +102,15 @@ public class UserController {
     }
 
     // OTHER APIs can also be protected according to roles.
+    
+    @GetMapping("/events")
+    public ResponseEntity<List<EventResponse>> getAllEvents() {
+        return ResponseEntity.ok(eventClient.getAllEvents());
+    }
+
+    @GetMapping("/events/{id}")
+    public ResponseEntity<EventResponse> getEventById(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(eventClient.getEventById(id));
+    }
 }
