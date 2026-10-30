@@ -35,6 +35,11 @@ public class JwtFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String path = request.getServletPath();
+        
+        System.out.println("JWT FILTER PATH: " + path);
+        System.out.println("REQUEST URI: " + request.getRequestURI());
+        
+        
 
         // Public APIs
         boolean isPublicEndpoint =
@@ -45,6 +50,8 @@ public class JwtFilter extends OncePerRequestFilter {
                 || path.startsWith("/swagger-ui")
                 || path.startsWith("/v3/api-docs");
 
+        System.out.println("IS PUBLIC ENDPOINT: " + isPublicEndpoint);
+        
         if (isPublicEndpoint) {
             chain.doFilter(request, response);
             return;
@@ -54,10 +61,7 @@ public class JwtFilter extends OncePerRequestFilter {
         String header = request.getHeader("Authorization");
 
         if (header == null || !header.startsWith("Bearer ")) {
-            sendErrorResponse(
-                    response,
-                    401,
-                    "Authorization header is missing or invalid");
+            chain.doFilter(request, response);
             return;
         }
 
