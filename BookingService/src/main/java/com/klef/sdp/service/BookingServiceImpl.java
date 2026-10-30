@@ -1,239 +1,182 @@
 package com.klef.sdp.service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+import com.klef.sdp.entity.Booking;
 import com.klef.sdp.client.EventClient;
+import com.klef.sdp.client.UserClient;
 import com.klef.sdp.dto.BookingRequest;
 import com.klef.sdp.dto.BookingResponse;
 import com.klef.sdp.dto.EventResponse;
-import com.klef.sdp.entity.Booking;
-import com.klef.sdp.exception.ResourceNotFoundException;
+import com.klef.sdp.dto.UserResponse;
 import com.klef.sdp.repo.BookingRepository;
 
+import feign.FeignException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 
+import com.klef.sdp.exception.ResourceNotFoundException;
+
 @Service
-public class BookingServiceImpl implements BookingService
-{
-    @Autowired
-    private BookingRepository repository;
+public class BookingServiceImpl implements BookingService {
 
     @Autowired
-    private EventClient eventClient; 
+    private BookingRepository bookingRepository;
+    
+    @Autowired
+    private UserClient userClient;
+ 
+    @Autowired
+    private EventClient eventClient;
+    
+    public ResponseEntity<?> saveBookingFallback(
+            BookingRequest request, Throwable ex) {
 
-//    @Override
-//    public ResponseEntity<?> saveBooking(BookingRequest request)
-//    {
-//        EventResponse event = eventClient.getEventById(request.getEventId());
-//
-//        if (request.getSeatsBooked() > event.getAvailableSeats())
-//        {
-//            return ResponseEntity
-//                    .status(HttpStatus.BAD_REQUEST)
-//                    .body("Insufficient available seats");
-//        }
-//
-//        eventClient.bookSeats(
-//                request.getEventId(),
-//                request.getSeatsBooked());
-//
-//        Booking booking = Booking.builder()
-//                .userId(request.getUserId())
-//                .eventId(request.getEventId())
-//                .seatsBooked(request.getSeatsBooked())
-//                .bookingStatus("CONFIRMED")
-//                .build();
-//
-//        Booking savedBooking = repository.save(booking);
-//
-//        return new ResponseEntity<>(
-//                mapToResponse(savedBooking),
-//                HttpStatus.CREATED);
-//    }
+        Throwable cause = ex;
+
+        while (cause != null) {
+
+            if (cause instanceof FeignException.NotFound) {
+                throw new ResourceNotFoundException(
+                    "User not found with id : " + request.getUserId()
+                );
+            }
+
+            cause = cause.getCause();
+        }
+
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body("User Service is currently unavailable or\nThe User with given ID is not found.\nCheck the user ID or Please try again later.");
+    }
+    
+    @Override
+    @CircuitBreaker(
+        name = "UserService",
+        fallbackMethod = "saveBookingFallback"
+    )
+    public ResponseEntity<?> saveBooking(BookingRequest request) {
+    	
+    	 UserResponse user = userClient.getuserById(request.getUserId());
+    	 EventResponse event = eventClient.getEventById(request.getEventId()); 
+    	 
+    	 try {
+    		    event = eventClient.getEventById(request.getEventId());
+    		} catch (FeignException.NotFound e) {
+    		    throw new ResourceNotFoundException(
+    		        "Event not found with id : " + request.getEventId()
+    		    );
+    		}
+
+    	    if (user == null) {
+    	        throw new ResourceNotFoundException(
+    	            "User not found with id : " + request.getUserId()
+    	        );
+    	    }
+
+        Booking booking = new Booking();
+        booking.setUserId(request.getUserId());
+        booking.setEventId(request.getEventId());
+        booking.setSeatsBooked(request.getSeatsBooked());
+        booking.setBookingStatus("CONFIRMED");
+
+        Booking saved = bookingRepository.save(booking);
+
+        return ResponseEntity.ok(mapToResponse(saved));
+    }
 
     @Override
-    public List<BookingResponse> getAllBookings()
-    {
-        return repository.findAll()
+    public List<BookingResponse> getAllBookings() {
+
+        return bookingRepository.findAll()
                 .stream()
                 .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
- 
+
     @Override
-    public BookingResponse getBookingById(Long id)
-    {
-        Booking booking = repository.findById(id)
+    public BookingResponse getBookingById(Long id) {
+
+        Booking booking = bookingRepository.findById(id)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Booking not found with id : " + id));
+                        new ResourceNotFoundException("Booking not found with id: " + id));
 
         return mapToResponse(booking);
     }
 
     @Override
-    public BookingResponse updateBooking(Long id, BookingRequest request)
-    {
-        Booking booking = repository.findById(id)
+    public BookingResponse updateBooking(Long id, BookingRequest request) {
+
+        Booking booking = bookingRepository.findById(id)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Booking not found with id : " + id));
-
-        if ("CONFIRMED".equals(booking.getBookingStatus()))
-        {
-            if (!booking.getEventId().equals(request.getEventId()))
-            {
-                eventClient.releaseSeats(
-                        booking.getEventId(),
-                        booking.getSeatsBooked());
-
-                EventResponse newEvent =
-                        eventClient.getEventById(request.getEventId());
-
-                if (request.getSeatsBooked() > newEvent.getAvailableSeats())
-                {
-                    eventClient.bookSeats(
-                            booking.getEventId(),
-                            booking.getSeatsBooked());
-
-                    throw new IllegalArgumentException(
-                            "Insufficient available seats");
-                }
-
-                eventClient.bookSeats(
-                        request.getEventId(),
-                        request.getSeatsBooked());
-            }
-            else
-            {
-                int difference =
-                        request.getSeatsBooked() - booking.getSeatsBooked();
-
-                if (difference > 0)
-                {
-                    eventClient.bookSeats(
-                            request.getEventId(),
-                            difference);
-                }
-                else if (difference < 0)
-                {
-                    eventClient.releaseSeats(
-                            request.getEventId(),
-                            -difference);
-                }
-            }
-        }
-
+                        new ResourceNotFoundException("Booking not found with id: " + id));
+        
+        EventResponse event = eventClient.getEventById(request.getEventId()); 
+   	 
+   	 try {
+   		    event = eventClient.getEventById(request.getEventId());
+   		} catch (FeignException.NotFound e) {
+   		    throw new ResourceNotFoundException(
+   		        "Event not found with id : " + request.getEventId()
+   		    );
+   		}
+        
         booking.setUserId(request.getUserId());
         booking.setEventId(request.getEventId());
         booking.setSeatsBooked(request.getSeatsBooked());
 
-        Booking updatedBooking = repository.save(booking);
+        Booking updated = bookingRepository.save(booking);
 
-        return mapToResponse(updatedBooking);
+        return mapToResponse(updated);
     }
 
     @Override
-    public void deleteBooking(Long id)
-    {
-        Booking booking = repository.findById(id)
+    public void deleteBooking(Long id) {
+
+        Booking booking = bookingRepository.findById(id)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Booking not found with id : " + id));
+                        new ResourceNotFoundException("Booking not found with id: " + id));
 
-        repository.delete(booking);
+        bookingRepository.delete(booking);
     }
 
     @Override
-    public List<BookingResponse> getBookingsByUserId(Long userId)
-    {
-        return repository.findByUserId(userId)
+    public List<BookingResponse> getBookingsByUserId(Long userId) {
+
+        return bookingRepository.findByUserId(userId)
                 .stream()
                 .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
-    public ResponseEntity<?> cancelBooking(Long id)
-    {
-        Booking booking = repository.findById(id)
+    public ResponseEntity<?> cancelBooking(Long id) {
+
+        Booking booking = bookingRepository.findById(id)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Booking not found with id : " + id));
+                        new ResourceNotFoundException("Booking not found with id: " + id));
 
-        if ("CONFIRMED".equals(booking.getBookingStatus()))
-        {
-            eventClient.releaseSeats(
-                    booking.getEventId(),
-                    booking.getSeatsBooked());
+        booking.setBookingStatus("CANCELLED");
 
-            booking.setBookingStatus("CANCELLED");
+        Booking updated = bookingRepository.save(booking);
 
-            repository.save(booking);
-        }
-
-        return ResponseEntity.ok(mapToResponse(booking));
-    }
-    
-    @Override
-    @CircuitBreaker(
-            name = "EventService",
-            fallbackMethod = "EventServiceFallback"
-    )
-    public ResponseEntity<?> saveBooking(BookingRequest request)
-    {
-        EventResponse event = eventClient.getEventById(request.getEventId());
-
-        if (request.getSeatsBooked() > event.getAvailableSeats())
-        {
-            return ResponseEntity
-                    .status(HttpStatus.BAD_REQUEST)
-                    .body("Insufficient available seats");
-        }
-
-        eventClient.bookSeats(
-                request.getEventId(),
-                request.getSeatsBooked());
-
-        Booking booking = Booking.builder()
-                .userId(request.getUserId())
-                .eventId(request.getEventId())
-                .seatsBooked(request.getSeatsBooked())
-                .bookingStatus("CONFIRMED")
-                .build();
-
-        Booking savedBooking = repository.save(booking);
-
-        return new ResponseEntity<>(
-                mapToResponse(savedBooking),
-                HttpStatus.CREATED);
+        return ResponseEntity.ok(mapToResponse(updated));
     }
 
-    public ResponseEntity<?> EventServiceFallback(
-            BookingRequest request,
-            Throwable throwable)
-    {
-        System.out.println("--------------------------------");
-        System.out.println("Event Service is unavailable!");
-        System.out.println("Circuit Breaker Fallback executed.");
-        System.out.println("----------------------------------");
+    private BookingResponse mapToResponse(Booking booking) {
 
-        return ResponseEntity
-                .status(HttpStatus.SERVICE_UNAVAILABLE)
-                .body("Event Service is currently unavailable");
-    }
+        BookingResponse response = new BookingResponse();
 
-    private BookingResponse mapToResponse(Booking booking)
-    {
-        return BookingResponse.builder()
-                .bookingId(booking.getBookingId())
-                .userId(booking.getUserId())
-                .eventId(booking.getEventId())
-                .seatsBooked(booking.getSeatsBooked())
-                .bookingStatus(booking.getBookingStatus())
-                .build();
+        response.setBookingId(booking.getBookingId());
+        response.setUserId(booking.getUserId());
+        response.setEventId(booking.getEventId());
+        response.setSeatsBooked(booking.getSeatsBooked());
+        response.setBookingStatus(booking.getBookingStatus());
+
+        return response;
     }
 }
- 
